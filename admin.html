@@ -1,119 +1,123 @@
 <!DOCTYPE html>
 <html lang="hu">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Vezérlés – Talentum Nap</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Vezérlés – Talentum Nap</title>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getDatabase, ref, set, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getDatabase, ref, set, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDmb4zgzbOlF_8KtjwaCJn3y_2DwYapqQk",
-      authDomain: "talentum-nap.firebaseapp.com",
-      databaseURL: "https://talentum-nap-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "talentum-nap",
-      storageBucket: "talentum-nap.firebasestorage.app",
-      messagingSenderId: "930243290620",
-      appId: "1:930243290620:web:4ce6c75911ecd13ba4be79"
-    };
+const firebaseConfig = {
+  apiKey: "AIzaSyDmb4zgzbOlF_8KtjwaCJn3y_2DwYapqQk",
+  authDomain: "talentum-nap.firebaseapp.com",
+  databaseURL: "https://talentum-nap-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "talentum-nap",
+  storageBucket: "talentum-nap.firebasestorage.app",
+  messagingSenderId: "930243290620",
+  appId: "1:930243290620:web:4ce6c75911ecd13ba4be79"
+};
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
 
-    function msg(text, error = false) {
-      const status = document.getElementById("status");
-      status.textContent = text;
-      status.style.color = error ? "#ff4444" : "#00cc00";
-      status.style.opacity = "1";
-      setTimeout(() => status.style.opacity = "0", 4000);
-    }
+/* ===============================
+   GROUP CONFIG (11 TOTAL OPTIONS)
+   =============================== */
+const groupSizes = [3, 3, 2, 3];
 
-    window.login = async () => {
-      const email = document.getElementById("email").value.trim();
-      const pw = document.getElementById("password").value;
-      try {
-        await signInWithEmailAndPassword(auth, email, pw);
-        msg("Bejelentkezve!");
-      } catch (e) {
-        msg("Hiba: " + e.message, true);
-      }
-    };
+function getGroupRange(groupIndex) {
+  let start = 0;
+  for (let i = 0; i < groupIndex; i++) start += groupSizes[i];
+  const end = start + groupSizes[groupIndex];
+  return { start, end };
+}
 
-    window.logout = async () => {
-      await signOut(auth);
-    };
+/* ===============================
+   UI MESSAGE
+   =============================== */
+function msg(text, error = false) {
+  const status = document.getElementById("status");
+  status.textContent = text;
+  status.style.color = error ? "#ff4444" : "#00cc00";
+  status.style.opacity = "1";
+  setTimeout(() => status.style.opacity = "0", 4000);
+}
 
-    window.setGroup = async (g) => {
-      try {
-        await set(ref(db, "currentGroup"), g);
-        msg(`Aktív kör: ${g+1} (opciók ${(g*3)+1}–${(g*3)+3})`);
-      } catch (e) {
-        msg("Hiba a csoport váltásakor", true);
-      }
-    };
+/* ===============================
+   AUTH
+   =============================== */
+window.login = async () => {
+  const email = document.getElementById("email").value.trim();
+  const pw = document.getElementById("password").value;
+  try {
+    await signInWithEmailAndPassword(auth, email, pw);
+    msg("Bejelentkezve!");
+  } catch (e) {
+    msg("Hiba: " + e.message, true);
+  }
+};
 
+window.logout = async () => {
+  await signOut(auth);
+};
 
+/* ===============================
+   GROUP SWITCH
+   =============================== */
+window.setGroup = async (g) => {
+  try {
+    await set(ref(db, "currentGroup"), g);
+    const { start, end } = getGroupRange(g);
+    msg(`Aktív kör: ${g+1} (opciók ${start+1}–${end})`);
+  } catch (e) {
+    msg("Hiba a csoport váltásakor", true);
+  }
+};
+
+/* ===============================
+   RESET VOTES (DYNAMIC)
+   =============================== */
 window.clearFirebaseData = async () => {
   if (!confirm("Biztosan nullázod az ÖSSZES szavazatot?")) return;
 
   try {
     const updates = {};
-    for (let i = 0; i < 12; i++) {
+    const totalOptions = groupSizes.reduce((a, b) => a + b, 0);
+
+    for (let i = 0; i < totalOptions; i++) {
       updates[`options/${i}/votes`] = 0;
     }
+
     await update(ref(db), updates);
-    alert("Szavazatok nullázva (0–11 opció)");
+    alert(`Szavazatok nullázva (0–${totalOptions - 1} opció)`);
   } catch (err) {
     alert("Hiba: " + err.message);
   }
 };
 
+window.clearLocalStorage = () => {
+  localStorage.clear();
+};
 
-    onAuthStateChanged(auth, user => {
-      const loginBox = document.getElementById("login-box");
-      const panel = document.getElementById("admin-panel");
-      if (user) {
-        loginBox.style.display = "none";
-        panel.style.display = "block";
-        msg("Admin panel aktív");
-      } else {
-        loginBox.style.display = "block";
-        panel.style.display = "none";
-        msg("Bejelentkezés szükséges", true);
-      }
-    });
-    window.clearLocalStorage = () => {
-      localStorage.clear()
-    };
-
-
-
-
-
-
-
-
-import { onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
-// Eredmények div
+/* ===============================
+   RESULTS DISPLAY
+   =============================== */
 const resultsDiv = document.getElementById("results");
 
-// Funkció az eredmények frissítéséhez
 function displayResults(options, currentGroup) {
   if (!options) {
     resultsDiv.textContent = "Nincsenek szavazatok még.";
     return;
   }
 
-  // Számoljuk ki a maximum szavazatot a csoportban, hogy a progress bar arányos legyen
-  const start = currentGroup * 3;
-  const end = start + 3;
+  const { start, end } = getGroupRange(currentGroup);
   const groupOptions = [];
-  let maxVotes = 1; // elkerüljük a 0 osztást
+  let maxVotes = 1;
+
   for (let i = start; i < end; i++) {
     const opt = options[i];
     if (opt) {
@@ -123,137 +127,118 @@ function displayResults(options, currentGroup) {
   }
 
   let html = "";
-groupOptions.forEach(opt => {
-  const widthPercent = maxVotes > 0 ? (opt.votes / maxVotes) * 100 : 0;
-  
-  // Csak akkor rakjuk bele a progress bart, ha van legalább 1 szavazat
-  const progressBarHtml = opt.votes > 0 
-    ? `<div class="progress-bar" style="width:${widthPercent}%">${opt.votes}</div>`
-    : `` ;  // vagy akár csak simán a számot
 
-  html += `
-    <div class="result-item">
-      <div class="result-text">${opt.text}</div>
-      <div class="progress-bar-container">
-        ${progressBarHtml}
+  groupOptions.forEach(opt => {
+    const widthPercent = maxVotes > 0 ? (opt.votes / maxVotes) * 100 : 0;
+    const progressBarHtml = opt.votes > 0
+      ? `<div class="progress-bar" style="width:${widthPercent}%">${opt.votes}</div>`
+      : ``;
+
+    html += `
+      <div class="result-item">
+        <div class="result-text">${opt.text}</div>
+        <div class="progress-bar-container">
+          ${progressBarHtml}
+        </div>
       </div>
-    </div>
-  `;
-});
+    `;
+  });
 
   resultsDiv.innerHTML = html;
 }
 
-// Firebase adat figyelés
+/* ===============================
+   AUTH STATE + LISTENERS
+   =============================== */
 onAuthStateChanged(auth, user => {
+  const loginBox = document.getElementById("login-box");
+  const panel = document.getElementById("admin-panel");
+
   if (user) {
+    loginBox.style.display = "none";
+    panel.style.display = "block";
+    msg("Admin panel aktív");
+
     const optionsRef = ref(db, "options");
     const groupRef = ref(db, "currentGroup");
 
-    // Figyelés egyszerre az opciókra és az aktuális csoportra
     onValue(groupRef, groupSnap => {
-      const currentGroup = groupSnap.val() || 0;
+      const currentGroup = groupSnap.val() ?? 0;
 
       onValue(optionsRef, optionsSnap => {
         const options = optionsSnap.val();
         displayResults(options, currentGroup);
       });
     });
+
+  } else {
+    loginBox.style.display = "block";
+    panel.style.display = "none";
+    msg("Bejelentkezés szükséges", true);
   }
 });
+</script>
 
-  </script>
+<style>
+body { font-family: Arial, sans-serif; background: #0d1b2a; color: white; text-align: center; padding: 40px; margin: 0; }
+h1 { color: #e0e0e0; margin-bottom: 30px; }
+#status { font-size: 1.4rem; margin: 20px 0; min-height: 40px; }
+.container { max-width: 900px; margin: 0 auto; }
+.box { background: #1b263b; padding: 40px; border-radius: 12px; }
+input { width: 100%; max-width: 400px; padding: 14px; margin: 12px auto; display: block; border-radius: 6px; border: 1px solid #444; background: #2a3443; color: white; font-size: 1.1rem; }
+button { padding: 14px 30px; font-size: 1.2rem; border: none; border-radius: 8px; cursor: pointer; margin: 12px; }
+.group { background: #1b98e0; color: white; }
+.group:hover { background: #0d7bd9; }
+.reset { background: #e63946; color: white; font-weight: bold; padding: 18px 60px; }
+.reset:hover { background: #d00000; }
+.logout { background: #606c38; color: white; }
 
-  <style>
-    body { font-family: Arial, sans-serif; background: #0d1b2a; color: white; text-align: center; padding: 40px; margin: 0; }
-    h1 { color: #e0e0e0; margin-bottom: 30px; }
-    #status { font-size: 1.4rem; margin: 20px 0; min-height: 40px; }
-    .container { max-width: 900px; margin: 0 auto; }
-    .box { background: #1b263b; padding: 40px; border-radius: 12px; }
-    input { width: 100%; max-width: 400px; padding: 14px; margin: 12px auto; display: block; border-radius: 6px; border: 1px solid #444; background: #2a3443; color: white; font-size: 1.1rem; }
-    button { padding: 14px 30px; font-size: 1.2rem; border: none; border-radius: 8px; cursor: pointer; margin: 12px; }
-    .group { background: #1b98e0; color: white; }
-    .group:hover { background: #0d7bd9; }
-    .reset { background: #e63946; color: white; font-weight: bold; padding: 18px 60px; }
-    .reset:hover { background: #d00000; }
-    .clear { background: #606c38; color: white; padding: 18px 40px; }
-    .clear:hover { background: #4f5c2f; }
-    .logout { background: #606c38; color: white; }
-    #admin-panel { margin-top: 40px; }
-
-    .result-item {
-  margin-bottom: 12px;
-  text-align: left;
-}
-
-.result-text {
-  font-weight: bold;
-  margin-bottom: 6px;
-}
-
-.progress-bar-container {
-  background: #0d1b2a;
-  border-radius: 6px;
-  overflow: hidden;
-  height: 20px;
-}
-
-.progress-bar {
-  height: 100%;
-  background: #1b98e0;
-  width: 0%;
-  text-align: right;
-  color: white;
-  padding-right: 8px;
-  box-sizing: border-box;
-  transition: width 0.5s ease;
-}
-
-  </style>
+.result-item { margin-bottom: 12px; text-align: left; }
+.result-text { font-weight: bold; margin-bottom: 6px; }
+.progress-bar-container { background: #0d1b2a; border-radius: 6px; overflow: hidden; height: 20px; }
+.progress-bar { height: 100%; background: #1b98e0; text-align: right; color: white; padding-right: 8px; transition: width 0.5s ease; }
+</style>
 </head>
+
 <body>
-
 <div class="container">
-  <h1>Admin Vezérlés – Talentum Nap</h1>
-  <div id="status"></div>
+<h1>Admin Vezérlés – Talentum Nap</h1>
+<div id="status"></div>
 
-  <div class="box">
-    <div id="login-box">
-      <input id="email" type="email" placeholder="Email cím">
-      <input id="password" type="password" placeholder="Jelszó">
-      <button onclick="login()" style="background:#00cc00; color:white; width:200px;">Belépés</button>
+<div class="box">
+  <div id="login-box">
+    <input id="email" type="email" placeholder="Email cím">
+    <input id="password" type="password" placeholder="Jelszó">
+    <button onclick="login()" style="background:#00cc00; color:white; width:200px;">Belépés</button>
+  </div>
+
+  <div id="admin-panel" style="display:none;">
+    <h2 style="color:#00cc00;">Admin Eszközök</h2>
+
+    <div>
+      <button class="group" onclick="setGroup(0)">1–3</button>
+      <button class="group" onclick="setGroup(1)">4–6</button>
+      <button class="group" onclick="setGroup(2)">7–8</button>
+      <button class="group" onclick="setGroup(3)">9–11</button>
     </div>
 
-    <div id="admin-panel" style="display:none;">
-      <h2 style="color:#00cc00;">Admin Eszközök</h2>
-      
-      <div>
-        <button class="group" onclick="setGroup(0)">1–3</button>
-        <button class="group" onclick="setGroup(1)">4–6</button>
-        <button class="group" onclick="setGroup(2)">7–9</button>
-        <button class="group" onclick="setGroup(3)">10–12</button>
-      </div>
-      
-      <div style="margin-top: 40px;">
-        <button class="reset" onclick="clearFirebaseData()">Szavazás eredmény reset</button>
-        <button onclick="clearLocalStorage()">clear</button>
-      </div>
-      
-      <br><br>
-      <button class="logout" onclick="logout()">Kijelentkezés</button>
+    <div style="margin-top: 40px;">
+      <button class="reset" onclick="clearFirebaseData()">Szavazás eredmény reset</button>
+      <button onclick="clearLocalStorage()">clear</button>
     </div>
+
+    <br><br>
+    <button class="logout" onclick="logout()">Kijelentkezés</button>
   </div>
 </div>
-
-
+</div>
 
 <div style="margin-top: 40px;">
-  <h3>Szavazás Eredményei</h3>
-  <div id="results" style="background:#2a3443; padding:20px; border-radius:8px; min-height:60px;">
-    Betöltés...
-  </div>
+<h3>Szavazás Eredményei</h3>
+<div id="results" style="background:#2a3443; padding:20px; border-radius:8px; min-height:60px;">
+Betöltés...
 </div>
-
+</div>
 
 </body>
 </html>
