@@ -26,17 +26,25 @@
 
     const resultsDiv = document.getElementById("results");
 
-    // Funkció az eredmények megjelenítésére
+    // group structure (3,3,2,3)
+    const groupSizes = [3, 3, 2, 3];
+
     function displayResults(options, currentGroup) {
       if (!options) {
         resultsDiv.textContent = "Nincsenek szavazatok még.";
         return;
       }
 
-      const start = currentGroup * 3;
-      const end = start + 3;
+      // calculate start index
+      let start = 0;
+      for (let i = 0; i < currentGroup; i++) {
+        start += groupSizes[i];
+      }
+
+      const end = start + groupSizes[currentGroup];
+
       const groupOptions = [];
-      let maxVotes = 1; // elkerüljük a 0 osztást
+      let maxVotes = 1;
 
       for (let i = start; i < end; i++) {
         const opt = options[i];
@@ -47,33 +55,34 @@
       }
 
       let html = "";
-        groupOptions.forEach(opt => {
+
+      groupOptions.forEach(opt => {
         const widthPercent = maxVotes > 0 ? (opt.votes / maxVotes) * 100 : 0;
-        
-        // Csak akkor rakjuk bele a progress bart, ha van legalább 1 szavazat
-        const progressBarHtml = opt.votes > 0 
-            ? `<div class="progress-bar" style="width:${widthPercent}%">${opt.votes}</div>`
-            : `` ;  // vagy akár csak simán a számot
+
+        const progressBarHtml = opt.votes > 0
+          ? `<div class="progress-bar" style="width:${widthPercent}%">${opt.votes}</div>`
+          : ``;
 
         html += `
-            <div class="result-item">
+          <div class="result-item">
             <div class="result-text">${opt.text}</div>
             <div class="progress-bar-container">
-                ${progressBarHtml}
+              ${progressBarHtml}
             </div>
-            </div>
+          </div>
         `;
-        });
+      });
 
       resultsDiv.innerHTML = html;
     }
 
-    // Figyelés Firebase-ből
+    // Firebase listeners
     const optionsRef = ref(db, "options");
     const groupRef = ref(db, "currentGroup");
 
     onValue(groupRef, groupSnap => {
       const currentGroup = groupSnap.val() || 0;
+
       onValue(optionsRef, optionsSnap => {
         const options = optionsSnap.val();
         displayResults(options, currentGroup);
@@ -134,14 +143,17 @@
       line-height: 24px;
       font-weight: bold;
     }
+
     .image img{
       width: 300px;
     }
+
     .image{
       margin-top: 40px;
     }
   </style>
 </head>
+
 <body>
 
   <h1>Szavazás Eredmények – Talentum Nap</h1>
@@ -149,8 +161,10 @@
   <div id="results">
     Betöltés...
   </div>
+
   <div class="image">
     <img src="assets/qrcode.png" alt="">
   </div>
+
 </body>
 </html>
